@@ -366,7 +366,7 @@ resolveFams fams = do
   where
     go done [] = return ([],[],mempty,[])
     go done (x:xs)
-      | elementOfUniqSet x done = return ([],[],mempty,[])
+      | elementOfUniqSet x done = go done xs
       | otherwise = do
         (dfn,adts) <- convertFam x
         let done1 = addOneToUniqSet done x
@@ -380,7 +380,7 @@ resolveADTs adts = fst <$> go emptyUniqSet (nonDetEltsUniqSet adts)
   where
     go done [] = return ([],done)
     go done (x:xs)
-      | elementOfUniqSet x done = return ([],done)
+      | elementOfUniqSet x done = go done xs
       | otherwise = do
         (this,deps) <- convertPromoted x
         let done1 = addOneToUniqSet done x
