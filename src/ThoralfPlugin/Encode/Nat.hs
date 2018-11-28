@@ -10,6 +10,7 @@ import Type ( Type, TyVar, splitTyConApp_maybe, tyVarKind, isNumLitTy )
 import TcRnTypes( TcPluginM )
 
 import ThoralfPlugin.Encode.TheoryEncoding
+import ThoralfPlugin.Convert ( makeSMTName )
 
 
 natTheory :: TcPluginM TheoryEncoding
@@ -63,7 +64,7 @@ natSubConv ty = do
 assertIntIsNat :: TyVar -> Maybe [String]
 assertIntIsNat tv = do
   (KdConvCont _ _) <- natKindConv (tyVarKind tv)
-  let name = "var" ++ (show $ getUnique tv)
+  let name = makeSMTName $ tv
   let isNat = "(assert (<= 0 " ++ name ++ "))"
   return [isNat]
 
