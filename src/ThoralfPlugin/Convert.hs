@@ -23,7 +23,7 @@ import DynFlags
 import Outputable hiding ( (<>) )
 
 -- GHC API imports:
-import GhcPlugins hiding ( (<>) )
+import GhcPlugins hiding ( (<>), freeVars )
 import TcRnTypes ( Ct, ctPred )
 import Class ( Class(..) )
 import TcType ( Kind, tyCoVarsOfTypesList )
@@ -281,14 +281,18 @@ compileBranch funName branch = do
         return $ unwords ["(", tyName, sortName, ")"]
   bindingExpr <- mkBindingExpr varList
   -- get the variables that are conflicting and also what they are conflicting with
-  let negList = concatMap (getConflicts varList (coAxBranchLHS branch)) incompatiblePatterns
+  let negLists = map (getConflicts varList (coAxBranchLHS branch)) incompatiblePatterns
+  let negExprGen b =
+        (foldr1 (\x y -> unwords ["(", "or", x, y, ")"]) <$>) $
+        forM b $ \(v, t) -> do
+          let vName = makeSMTName v
+          (tName, _) <- convertType t
+          return $ unwords ["(not","(", "=", vName, tName, "))"]
+  negExpr' <- do
+    negExprs <- mapM negExprGen negLists
+    return $ foldr1 (\x y -> unwords ["(", "and", x, y, ")"]) negExprs
   -- now form the expression saying that "(not (= a 1) (= b 2))" which will talk about the previous patterns
-  negExprs <- forM negList $ \(v, t) -> do
-    let vName = makeSMTName v
-    (tName, _) <- convertType t
-    return $ unwords ["(not","(", "=", vName, tName, "))"]
-  let negExpr' = foldr1 (\x y -> unwords ["(", "or", x, y, ")"]) negExprs
-      freeVars = tyCoVarsOfTypesList $ map snd negList
+  let freeVars = tyCoVarsOfTypesList $ map snd (concat negLists)
   innerBinds <- mkBindingExpr freeVars
   let negExpr
         | null freeVars = negExpr'
@@ -300,7 +304,7 @@ compileBranch funName branch = do
                        ++ ["(", "=", "(", funName]
                        ++ [lhsExpr]
                        ++ [")", rhsExpr, ")", ")"]
-        else if null negList
+        else if null negLists
         then unwords $ ["(", "assert", "(", "forall", "("]
                        ++ [bindingExpr] ++ [")"]
                        ++ ["(", "=", "(", funName]
